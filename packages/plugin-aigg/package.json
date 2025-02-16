@@ -1,0 +1,29 @@
+{
+  "name": "@elizaos/plugin-aigg",
+  "version": "0.25.6-alpha.1", 
+  "description": "AIGG Insights API integration for market analysis",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "clean": "rm -rf dist",
+    "check-types": "tsc --noEmit",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@elizaos/core": "workspace:*",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "@types/jest": "^29.0.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
