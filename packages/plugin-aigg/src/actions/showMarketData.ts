@@ -2,6 +2,7 @@ import { Action, elizaLogger, IAgentRuntime, Memory, State, HandlerCallback, Con
 
 interface MarketState extends State {
     lastAction?: string;
+    currentMarketId?: string;
     marketData?: {
         analysisText: string;
         content: {
@@ -24,21 +25,22 @@ interface MarketState extends State {
 
 export const showMarketData: Action = {
     name: "show_market_data",
-    description: "Display raw market data and statistics",
+    description: "Shows detailed market data for a previously analyzed market",
     similes: [
-        "show the numbers",
+        "show me the data",
+        "show the data",
+        "show market data",
+        "display data",
+        "show numbers",
+        "show stats",
+        "show breakdown",
         "give me the data",
         "what are the numbers",
-        "show me the stats",
-        "display market data",
-        "raw data",
-        "show me the data",
-        "show data",
-        "data for",
-        "numbers for",
-        "break down the numbers",
-        "break down the exact numbers",
-        "exact numbers"
+        "what's the data",
+        "what are the stats",
+        "numbers",
+        "data",
+        "stats"
     ],
     examples: [[
         {
@@ -67,50 +69,50 @@ export const showMarketData: Action = {
     ]],
     
     validate: async (runtime: IAgentRuntime, message: Memory, state?: State): Promise<boolean> => {
-        const marketState = state as MarketState;  // Type assertion if needed
+        const marketState = state as MarketState;
         const text = message.content.text.toLowerCase();
-        const hasDataRequest = text.includes("numbers") || 
-                             text.includes("data") || 
-                             text.includes("stats") ||
-                             text.includes("break down");
         
-        elizaLogger.info("Validating show_market_data request:", {
+        // Simplified trigger check
+        const hasTrigger = text.includes("numbers") || 
+                          text.includes("data") || 
+                          text.includes("stats");
+
+        // Add more detailed logging
+        elizaLogger.info("Validating show_market_data:", {
             text,
-            hasDataRequest,
-            lastAction: marketState?.lastAction,
-            hasMarketData: !!marketState?.marketData
+            hasTrigger,
+            hasMarketData: !!marketState?.marketData,
+            marketState: marketState ? JSON.stringify(marketState) : 'no state'
         });
 
-        return hasDataRequest && marketState?.lastAction === "analyze_market" && !!marketState?.marketData;
+        return hasTrigger && !!marketState?.marketData;
     },
 
     handler: async (
         runtime: IAgentRuntime,
         message: Memory,
-        state?: State,  // Note: using State instead of MarketState
+        state?: State,
         options?: { [key: string]: unknown },
         callback?: HandlerCallback
     ) => {
-        const marketState = state as MarketState;  // Type assertion if needed
+        const marketState = state as MarketState;
         
         if (!marketState?.marketData) {
             return {
-                text: "Ay, I need you to analyze a market first before I can show you the numbers. Try 'analyze market <ID>' first.",
+                text: "I need you to analyze a market first before I can show you the numbers. Try 'analyze market <ID>' first.",
                 content: { success: false }
             };
         }
 
+        // Simplified, direct data display
         const market = marketState.marketData;
         return {
-            text: `Market #${marketState.currentMarketId} Raw Data:
-
+            text: `Raw Market Data:
 Question: ${market.content.data.analysis.question}
-
-Current Prices:
-- ${market.content.data.analysis.outcomes[0]}: ${market.content.data.analysis.probability.toFixed(1)}%
-- ${market.content.data.analysis.outcomes[1]}: ${(100 - market.content.data.analysis.probability).toFixed(1)}%
-
-24h Volume: $${market.content.data.analysis.volume24h.toLocaleString()}
+Probability: ${market.content.data.analysis.probability.toFixed(1)}%
+Volume (24h): $${market.content.data.analysis.volume24h.toLocaleString()}
+Outcomes: ${market.content.data.analysis.outcomes.join(" vs ")}
+Prices: ${market.content.data.analysis.prices.join(" vs ")}
 Last Updated: ${new Date(market.content.data.analysis.lastUpdated).toLocaleString()}
 End Date: ${new Date(market.content.data.analysis.endDate).toLocaleString()}`,
             content: { success: true, data: market.content.data }

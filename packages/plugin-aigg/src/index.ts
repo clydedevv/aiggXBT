@@ -1,11 +1,16 @@
-import { Plugin } from "@elizaos/core";
+import type { Plugin } from "@elizaos/core";
 import { analyzeMarket } from "./actions/analyzeMarket";
+import { elizaLogger } from "@elizaos/core";
 
 export const aiggPlugin: Plugin = {
-    name: "plugin-aigg",
-    description: "AIGG Insights API integration for market analysis", 
-    actions: [analyzeMarket],
-    evaluators: []
+    name: "aigg",
+    description: "AIGG market analysis plugin for prediction markets",
+    actions: [analyzeMarket]
 };
+
+// Add debug logging
+elizaLogger.info("Registering AIGG plugin actions:", {
+    actions: [analyzeMarket.name]
+});
 
 export default aiggPlugin;
