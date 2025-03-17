@@ -68,6 +68,7 @@
         "@elizaos/plugin-goat": "workspace:*",
         "@elizaos/plugin-icp": "workspace:*",
         "@elizaos/plugin-initia": "workspace:*",
+        "@elizaos/plugin-insights": "workspace:*",
         "@elizaos/plugin-image-generation": "workspace:*",
         "@elizaos/plugin-lens-network": "workspace:*",
         "@elizaos/plugin-lit": "workspace:*",

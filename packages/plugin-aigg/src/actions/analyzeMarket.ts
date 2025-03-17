@@ -1,5 +1,5 @@
 import { Action, elizaLogger, IAgentRuntime, Memory, State, HandlerCallback, Content } from "@elizaos/core";
-import { AIGGClient } from "../client";
+import { AIGGService } from "../services/AIGGService";
 
 // Custom error types
 class ValidationError extends Error {
@@ -48,8 +48,8 @@ interface MarketState extends State {
 }
 
 export const analyzeMarket: Action = {
-    name: "analyze_market",
-    description: "Analyze market trends, patterns and provide insights",
+    name: "ANALYZE_MARKET",
+    description: "Analyze market trends and provide insights",
     similes: [
         "analyze market",
         "check market",
@@ -58,61 +58,9 @@ export const analyzeMarket: Action = {
         "what do you think about market",
         "assess market"
     ],
-    examples: [[
-        {
-            user: "user",
-            content: {
-                text: "analyze market 523138"
-            }
-        },
-        {
-            user: "assistant",
-            content: {
-                text: "Let me analyze that market for you...",
-                data: {
-                    analysis: {
-                        question: "Will X happen?",
-                        probability: 65.5,
-                        volume24h: 10000,
-                        outcomes: ["Yes", "No"],
-                        prices: ["0.655", "0.345"],
-                        esndDate: "2024-12-31",
-                        lastUpdated: "2024-03-20"
-                    }
-                }
-            }
-        }
-    ]],
 
-    validate: async (runtime: IAgentRuntime, message: Memory, state?: State): Promise<boolean> => {
-        try {
-            // Check if this is a follow-up question about market data
-            if (state?.lastAction === "analyze_market" && 
-                state?.marketData && 
-                (message.content.text.toLowerCase().includes("numbers") || 
-                 message.content.text.toLowerCase().includes("data") ||
-                 message.content.text.toLowerCase().includes("give me"))) {
-                elizaLogger.info("Validating follow-up question with state:", {
-                    lastAction: state.lastAction,
-                    hasMarketData: !!state.marketData
-                });
-                return true;
-            }
-
-            // Original market ID validation
-            const hasMarketKeyword = message.content.text.toLowerCase().includes("market");
-            const hasMarketId = /market.*?(\d+)/i.test(message.content.text);
-            
-            elizaLogger.info("Validating market request:", {
-                hasMarketKeyword,
-                hasMarketId
-            });
-            
-            return hasMarketKeyword && hasMarketId;
-        } catch (error) {
-            elizaLogger.error("Validation error:", error);
-            return false;
-        }
+    validate: async (_runtime: IAgentRuntime, _message: Memory) => {
+        return true;
     },
 
     handler: async (
@@ -121,80 +69,42 @@ export const analyzeMarket: Action = {
         state?: State,
         options?: { [key: string]: unknown },
         callback?: HandlerCallback
-    ) => {
+    ): Promise<boolean> => {
         try {
-            const client = new AIGGClient();
-            
             const marketIdMatch = message.content.text.match(/market.*?(\d+)/i);
             if (!marketIdMatch) {
-                throw new ValidationError("No valid market ID found in request");
+                throw new Error("No valid market ID found in request");
             }
 
             const marketId = marketIdMatch[1];
-            elizaLogger.info(`Fetching market ${marketId} from API`);
-            
-            const market = await client.getMarket(marketId);
-            elizaLogger.info(`Successfully retrieved market data for ${marketId}`, { market });
+            const service = AIGGService.getInstance();
+            const market = await service.getMarket(marketId);
 
-            if (!market || typeof market !== 'object') {
-                throw new APIError(`Failed to fetch market data for ID ${marketId}`);
-            }
-
-            // Safely parse JSON strings with error handling
+            // Parse outcomes and prices
             const outcomes = typeof market.outcomes === 'string' ? JSON.parse(market.outcomes) : market.outcomes;
             const prices = typeof market.outcome_prices === 'string' ? JSON.parse(market.outcome_prices) : market.outcome_prices;
-
             const probability = parseFloat(prices[0]) * 100;
-            const analysisText = `Eyy, here's what I got on market #${marketId} 🤌
+
+            const analysisText = `Market Analysis for #${marketId}:
 
 ${market.question}
 
-Current Action:
+Current Probabilities:
 - ${outcomes[0]}: ${probability.toFixed(1)}%
 - ${outcomes[1]}: ${(100 - probability).toFixed(1)}%
 
 24h Volume: $${market.volume_24h.toLocaleString()}
 End Date: ${new Date(market.end_date).toLocaleDateString()}
 
-Quick Take: ${market.description.split('\n')[0]}
+Description: ${market.description}`;
 
-Need any specific angles on these numbers, paisan? 🤌`;
-
-            // Simplified state storage
-            if (state) {
-                elizaLogger.info("Storing market data in state", {
+            if (callback) {
+                callback({
+                    text: analysisText,
                     marketId,
-                    marketData: {
-                        question: market.question,
-                        probability,
-                        volume24h: market.volume_24h,
-                        outcomes,
-                        prices,
-                        endDate: market.end_date,
-                        lastUpdated: market.last_updated
-                    }
-                });
-                
-                state.lastAction = "analyze_market";
-                state.currentMarketId = marketId;
-                state.marketData = {
-                    question: market.question,
-                    probability,
-                    volume24h: market.volume_24h,
-                    outcomes,
-                    prices,
-                    endDate: market.end_date,
-                    lastUpdated: market.last_updated
-                };
-            }
-
-            return {
-                text: analysisText,
-                content: {
-                    success: true,
                     data: {
-                        marketId,
-                        analysis: {
+                        market: {
+                            id: marketId,
                             question: market.question,
                             probability,
                             volume24h: market.volume_24h,
@@ -204,25 +114,33 @@ Need any specific angles on these numbers, paisan? 🤌`;
                             lastUpdated: market.last_updated
                         }
                     }
-                }
-            };
+                });
+            }
 
+            return true;
         } catch (error) {
-            elizaLogger.error("Error in analyzeMarket action:", {
-                error: error instanceof Error ? error.message : "Unknown error",
-                stack: error instanceof Error ? error.stack : undefined
-            });
-
-            return {
-                text: "Ay, hit a snag pulling that market data. Give me another shot with the ID.",
-                content: {
-                    success: false,
-                    error: {
-                        code: "MARKET_ANALYSIS_ERROR",
-                        message: error instanceof Error ? error.message : "Unknown error occurred"
-                    }
-                }
-            };
+            elizaLogger.error("Error in analyzeMarket action:", error);
+            if (callback) {
+                callback({
+                    text: "Sorry, I had trouble analyzing that market. Please try again.",
+                    error: error instanceof Error ? error.message : "Unknown error"
+                });
+            }
+            return false;
         }
-    }
+    },
+
+    examples: [[
+        {
+            user: "user",
+            content: { text: "analyze market 523138" }
+        },
+        {
+            user: "assistant",
+            content: {
+                text: "Let me analyze that market for you...",
+                action: "ANALYZE_MARKET"
+            }
+        }
+    ]]
 }; 
